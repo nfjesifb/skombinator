@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKombinator – Automatic SK Evaluator</title>
+    <style>
+        /* ===================  BASIC LAYOUT  =================== */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+            display: flex; /* Default: side-by-side */
+            height: 100vh;
+            margin: 0;
+            background: #f4f7f9;
+            transition: flex-direction 0.3s ease; /* Smooth layout transition */
+            box-sizing: border-box;
+        }
+
+        /* Layout Toggle Styling */
+        #layout-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            font-size: 0.8em;
+            z-index: 100; /* Ensure it's above other elements */
+            background-color: #e0e0e0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+         #layout-toggle:hover {
+            background-color: #d1d9e0;
+         }
+
+
+        #left-panel, #right-panel {
+            flex: 1;
+            padding: 20px;
+            height: 100vh; /* Full height for side-by-side */
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            min-width: 300px; /* Prevent panels from becoming too small */
+        }
+
+        #left-panel {
+            border-right: 1px solid #d1d9e0; /* Default border */
+        }
+
+        h1, h2 {
+            margin: 0 0 15px 0;
+            color: #333;
+            flex-shrink: 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+            flex-shrink: 0;
+        }
+
+        textarea {
+            width: 100%;
+            flex-grow: 1;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 1.1em;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 15px; /* Adjusted margin back */
+            box-sizing: border-box;
+            resize: none;
+            background: #fff;
+            color: #333;
+            min-height: 150px; /* Ensure minimum size */
+        }
+
+        button {
+            padding: 12px 20px;
+            cursor: pointer;
+            background: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 600;
+            transition: background-color .2s ease;
+            flex-shrink: 0;
+            margin-bottom: 10px; /* Spacing below button */
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+        /* Hide the manual evaluate button as evaluation is automatic */
+        #evaluate-btn {
+            display: none;
+        }
+
+
+        p {
+            font-size: .9em;
+            color: #666;
+            line-height: 1.4;
+            flex-shrink: 0;
+        }
+        #left-panel p { margin-top: 0; } /* Adjust spacing */
+
+        /* ===================  TABS  =================== */
+        #right-panel-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background: #fff;
+        }
+
+        .tab-nav {
+            display: flex;
+            border-bottom: 1px solid #ccc;
+            flex-shrink: 0;
+            flex-wrap: wrap; /* Allow tabs to wrap if needed */
+        }
+
+        .tab-button {
+            padding: 10px 15px;
+            cursor: pointer;
+            border: none;
+            background: #e0e0e0;
+            border-right: 1px solid #ccc;
+            font-weight: 500;
+            color: #333;
+            flex-shrink: 0;
+        }
+
+        .tab-button:last-child {
+            border-right: none;
+        }
+
+        .tab-button.active {
+            background: #007bff;
+            color: #fff;
+            border-bottom: 1px solid #007bff;
+            margin-bottom: -1px;
+            font-weight: 600;
+        }
+
+        .tab-content {
+            flex-grow: 1;
+            padding: 0; /* Remove padding, child divs handle it */
+            display: none;
+            overflow: auto; /* Allow content scrolling */
+            box-sizing: border-box;
+        }
+
+        #tree-tab.tab-content {
+            overflow: hidden; /* inner wrapper handles scroll */
+        }
+        #help-tab.tab-content { /* Add padding for help text */
+            padding: 15px;
+            line-height: 1.6;
+        }
+         #help-tab h3 {
+             margin-top: 1em;
+             margin-bottom: 0.5em;
+             color: #0056b3;
+         }
+         #help-tab code {
+             background-color: #eee;
+             padding: 0.1em 0.4em;
+             border-radius: 3px;
+             font-family: "Courier New", Courier, monospace;
+         }
+
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ===================  STEP OUTPUT  =================== */
+        #output {
+            font-family: "Courier New", Courier, monospace;
+            font-size: 1.1em;
+            white-space: pre;          /* Prevents wrapping */
+            word-wrap: break-word;     /* Less relevant now, but harmless */
+            overflow-x: auto;          /* Enable horizontal scrolling for the pre */
+            /* height: 100%; */        /* REMOVED this line */
+            padding: 15px;
+            line-height: 1.7;
+            color: #333;
+            box-sizing: border-box; /* Keep this */
+            /* The container (.tab-content -> #steps-tab) will handle vertical scroll */
+        }
+
+        /* ===================  HIGHLIGHT COLOURS  =================== */
+        .highlight { padding: .1em .05em; margin: 0 .05em; border-radius: 3px; display: inline-block; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+        .s-comb { background: #b71c1c; color: #fff; }
+        .s-arg1 { background: #e53935; color: #000; }
+        .s-arg2 { background: #ff7043; color: #000; }
+        .s-arg3 { background: #ffe0b2; color: #000; }
+        .k-comb { background: #0d47a1; color: #fff; }
+        .k-arg1 { background: #1e88e5; color: #000; }
+        .k-arg2 { background: #90caf9; color: #000; }
+        .paren { color: #aaa; background: transparent !important; }
+        .error {
+            color: #d9534f;
+            font-weight: bold;
+            background-color: #f2dede;
+            border: 1px solid #ebccd1;
+            padding: 10px;
+            border-radius: 4px;
+            display: block; /* Make it block to contain background */
+            white-space: pre-wrap; /* Keep error message formatting */
+        }
+        .status { color: #5cb85c; font-weight: bold; margin-top: 1em; }
+
+        /* ===================  TREE VISUALISATION  =================== */
+        #tree-visualization-content { position: relative; padding: 20px; overflow: auto; height: 100%; white-space: nowrap; box-sizing: border-box; }
+        #tree-svg-container { display: inline-block; min-height: 300px; transform-origin: 0 0; }
+        .zoom-controls { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 5px; z-index: 10; }
+        .zoom-controls button { width: 32px; height: 32px; padding: 0; font-size: 1.2em; font-weight: bold; color: #333; background: #fff; border: 1px solid #999; border-radius: 4px; cursor: pointer; }
+        .zoom-controls button:hover { background: #f0f0f0; }
+        .tree-leaf-text { font-family: "Courier New", Courier, monospace; font-size: 14px; text-anchor: middle; dominant-baseline: middle; fill: #000; font-weight: bold; }
+        .tree-leaf-text.s-comb-node, .tree-leaf-text.k-comb-node { fill: #fff; }
+        .tree-link { stroke: #555; stroke-width: 1.5px; transition: stroke .1s ease, stroke-width .1s ease; }
+        .step-arrow { stroke: #007bff; stroke-width: 2px; marker-end: url(#arrowhead); }
+        .leaf-bg { rx: 3px; ry: 3px; }
+        .tree-highlight .tree-link { stroke-width: 2.5px; }
+        .tree-highlight .tree-leaf-text { font-weight: bolder; }
+
+        /* =================== TOP-BOTTOM LAYOUT =================== */
+        body.top-bottom-layout {
+            flex-direction: column; /* Stack panels vertically */
+            height: auto; /* Allow body to grow */
+            overflow-y: auto; /* Allow scrolling for the whole page */
+        }
+
+        body.top-bottom-layout #left-panel,
+        body.top-bottom-layout #right-panel {
+            height: auto; /* Let content determine height */
+            overflow: visible; /* Don't need inner scrollbars */
+            flex: none; /* Don't flex-grow */
+            width: 100%; /* Take full width */
+            border-right: none; /* Remove side border */
+            border-bottom: 1px solid #d1d9e0; /* Add bottom border */
+        }
+        body.top-bottom-layout #right-panel {
+            border-bottom: none; /* No border after the last panel */
+        }
+
+        body.top-bottom-layout #left-panel textarea {
+             min-height: 200px; /* Maybe taller in this layout */
+        }
+
+        body.top-bottom-layout #right-panel-content {
+            min-height: 400px; /* Ensure output area has decent min height */
+        }
+        body.top-bottom-layout #tree-visualization-content {
+             height: 60vh; /* Give tree more relative height in this layout */
+         }
+
+
+    </style>
+</head>
+<body>
+
+<button id="layout-toggle" title="Toggle Layout">View: Side-by-Side</button>
+
+<div id="left-panel">
+    <h1>SKombinator</h1>
+    <label for="expressionInput">SK Combinator Expression (evaluation is automatic):</label>
+    <textarea id="expressionInput" rows="10" placeholder="Enter expression, e.g., S K K x">S K K (S I I (K K I))</textarea>
+    <button id="evaluate-btn">Evaluate</button> <p><small>Use S, K, I, or other single letters (a-z, A-Z). Parentheses group; juxtaposition is left-associative (<code>abc</code>=<code>((ab)c)</code>). <code>I</code> is automatically expanded to <code>(S K K)</code>.</small></p>
+</div>
+
+<div id="right-panel">
+    <h2>Evaluation Output</h2>
+    <div id="right-panel-content">
+        <div class="tab-nav">
+            <button class="tab-button active" data-tab="steps">Evaluation Steps</button>
+            <button class="tab-button" data-tab="tree">Tree Visualization</button>
+            <button class="tab-button" data-tab="help">Help</button>
+        </div>
+
+        <div id="steps-tab" class="tab-content active"><pre id="output">Evaluation results will appear here.</pre></div>
+
+        <div id="tree-tab" class="tab-content">
+            <div id="tree-visualization-content">
+                <div class="zoom-controls">
+                    <button id="zoom-in">+</button>
+                    <button id="zoom-out">−</button>
+                </div>
+                <svg id="tree-svg-container" height="400">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#007bff" />
+                        </marker>
+                    </defs>
+                </svg>
+            </div>
+        </div>
+
+        <div id="help-tab" class="tab-content">
+            <h3>Welcome to SKombinator!</h3>
+            <p>This tool allows you to explore the fascinating world of SK combinator calculus, a foundational system in theoretical computer science.</p>
+
+            <h3>How to Use</h3>
+            <ul>
+                <li><strong>Input Expression:</strong> Type your SK combinator expression into the text area on the left. Evaluation starts automatically shortly after you stop typing.
+                    <ul>
+                        <li>Use uppercase <code>S</code> and <code>K</code> for the basic combinators.</li>
+                        <li>Uppercase <code>I</code> is automatically expanded to <code>(S K K)</code> during parsing.</li>
+                        <li>Other single letters (<code>a-z</code>, <code>A-Z</code>, excluding S, K, I) are treated as variables or undefined combinators.</li>
+                        <li>Use parentheses <code>()</code> for grouping.</li>
+                        <li>Application (juxtaposition) is left-associative: <code>abc</code> is parsed as <code>((a b) c)</code>.</li>
+                    </ul>
+                </li>
+                 <li><strong>Automatic Evaluation:</strong> No need to click evaluate! The results update automatically as you type.</li>
+                <li><strong>Layout Toggle:</strong> Use the button in the top-right corner to switch between a side-by-side view and a top-bottom view of the input and output panels.</li>
+            </ul>
+
+            <h3>Understanding the Output</h3>
+            <ul>
+                <li><strong>Evaluation Steps Tab:</strong>
+                    <ul>
+                        <li>Shows the step-by-step reduction of the expression.</li>
+                        <li>Each step applies one reduction rule (S or K) to the leftmost, outermost possible redex (reducible expression).</li>
+                        <li>The part of the expression being reduced in the next step is highlighted with colored backgrounds:
+                            <ul>
+                                <li><span class="highlight s-comb">S</span> <span class="highlight s-arg1">x</span> <span class="highlight s-arg2">y</span> <span class="highlight s-arg3">z</span> reduces to <code>x z (y z)</code>.</li>
+                                <li><span class="highlight k-comb">K</span> <span class="highlight k-arg1">x</span> <span class="highlight k-arg2">y</span> reduces to <code>x</code>.</li>
+                            </ul>
+                        </li>
+                         <li>If the input is invalid (e.g., mismatched parentheses), an <span class="error" style="padding:1px 3px; display:inline-block; border:none;">Error</span> message will appear here.</li>
+                        <li>Evaluation stops when no more S or K rules can be applied (normal form) or after a maximum number of steps (currently 150).</li>
+                    </ul>
+                </li>
+                <li><strong>Tree Visualization Tab:</strong>
+                    <ul>
+                        <li>Displays the Abstract Syntax Tree (AST) for each step of the evaluation.</li>
+                        <li>Applications are shown as branches, combinators/variables as leaves.</li>
+                        <li>The nodes involved in the redex for that step are highlighted, matching the colors in the "Evaluation Steps" tab.</li>
+                        <li>Use the <code>+</code>/<code>-</code> buttons, Ctrl + Mouse Wheel, or Ctrl + +/- keys to zoom in and out. Drag the background (if needed, though scrollbars should appear) to pan.</li>
+                        <li>A blue arrow indicates the transformation from one tree state to the next.</li>
+                    </ul>
+                </li>
+                <li><strong>Help Tab:</strong> You are here!</li>
+            </ul>
+
+            <h3>What are SK Combinators?</h3>
+            <p>
+                SK combinator calculus is a system invented by Moses Schönfinkel and Haskell Curry. It's Turing-complete, meaning it can compute anything a regular computer can, using only two fundamental operations (combinators):
+            </p>
+            <ul>
+                <li><strong>S combinator:</strong> $ S x y z \rightarrow x z (y z) $ (Substitution/Application)</li>
+                <li><strong>K combinator:</strong> $ K x y \rightarrow x $ (Constant/Cancellation)</li>
+            </ul>
+            <p>The identity combinator <strong>I</strong> ($ I x \rightarrow x $) can be defined as $ I = S K K $. This tool automatically makes that substitution for convenience.</p>
+
+            <h3>Source Code & Disclaimer</h3>
+            <p>
+                You can find the source code for this tool on the
+                <a href="https://github.com/nfjesifb/skombinator.git" target="_blank" rel="noopener noreferrer">GitHub Repository</a>.
+            </p>
+            <p>
+                Please be advised that the quality of this code or its functionality comes with absolutely no guarantee, as the entire thing was hallucinated into existence by an LLM. Use at your own amusement!
+            </p>
+
+        </div>
+        </div>
+</div>
+
+<script>
+(()=>{
+    /* ---------- Constants / Globals ---------- */
+    const COMBINATOR = 'COMBINATOR', VARIABLE = 'VARIABLE', APPLICATION = 'APPLICATION';
+    const EVALUATION_DELAY_MS = 500; // Delay for automatic evaluation after input stops
+    const MAX_STEPS = 150;
+    let evaluationAstHistory = [];
+    let zoom = 1;
+    const ZOOM_STEP = 0.1, MIN_ZOOM = 0.2, MAX_ZOOM = 3;
+    let debounceTimer = null; // Timer for debouncing input evaluation
+
+    // Cache DOM Elements
+    const expressionInput = document.getElementById('expressionInput');
+    const layoutToggleButton = document.getElementById('layout-toggle');
+    const outputElement = document.getElementById('output');
+    const svgContainer = document.getElementById('tree-svg-container');
+    const treeVisualizationContent = document.getElementById('tree-visualization-content');
+
+    /* ---------- Debounce Utility ---------- */
+    function debounce(func, wait) {
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(debounceTimer);
+                func.apply(this, args);
+            };
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(later, wait);
+        };
+    }
+
+
+    /* ---------- Parser ---------- */
+    const tokenize = str => str.replace(/I/g, '( S K K )').replace(/([()])/g, ' $1 ').trim().split(/\s+/);
+    function parseTokens(tokens) {
+        if (!tokens.length) throw new Error('Parsing Error: Empty expression.');
+        let idx = 0;
+        const pPrimary = () => {
+            const tok = tokens[idx++];
+            if (!tok) throw new Error(`Parsing Error: Unexpected end of input. Expected token or ')'.`);
+            if (tok === '(') {
+                const e = pExpr();
+                if (idx >= tokens.length || tokens[idx] !== ')') throw new Error(`Parsing Error: Unmatched '('. Expected ')'.`);
+                idx++; return e;
+            }
+            if (tok === 'S' || tok === 'K') return { type: COMBINATOR, name: tok };
+            if (/^[a-zA-Z]$/.test(tok)) return { type: VARIABLE, name: tok }; // Allow other letters
+             if (tok === ')') throw new Error(`Parsing Error: Unexpected ')'.`);
+            throw new Error(`Parsing Error: Invalid token '${tok}'. Use S, K, I, other letters (a-z, A-Z), or parentheses ().`);
+        };
+        const pExpr = () => {
+            if (idx >= tokens.length || tokens[idx] === ')') throw new Error('Parsing Error: Expected an expression (combinator, variable, or parenthesized expression), but found end of input or ")".');
+            let node = pPrimary();
+            while (idx < tokens.length && tokens[idx] !== ')') {
+                 // Ensure there's something to apply to
+                if (idx >= tokens.length || tokens[idx] === ')') {
+                    throw new Error('Parsing Error: Missing argument for application.');
+                }
+                node = { type: APPLICATION, func: node, arg: pPrimary() };
+            }
+            return node;
+        };
+        const ast = pExpr();
+        if (idx < tokens.length) throw new Error(`Parsing Error: Unexpected trailing input starting with '${tokens[idx]}'. Check structure.`);
+        return ast;
+    }
+
+    /* ---------- Evaluator helpers ---------- */
+    const copy = n => JSON.parse(JSON.stringify(n)); // Simple deep copy for plain objects
+    function redex(ast) {
+        if (!ast || ast.type === COMBINATOR || ast.type === VARIABLE) return null;
+        if (ast.type === APPLICATION) {
+            // Check for K redex: K x y = ((K x) y)
+            if (ast.func?.type === APPLICATION && ast.func.func?.type === COMBINATOR && ast.func.func.name === 'K') {
+                 return { node: ast, type: 'K' };
+            }
+             // Check for S redex: S x y z = (((S x) y) z)
+            if (ast.func?.type === APPLICATION && ast.func.func?.type === APPLICATION && ast.func.func.func?.type === COMBINATOR && ast.func.func.func.name === 'S') {
+                return { node: ast, type: 'S' };
+            }
+            // Recursively check left (function) then right (argument) - Standard Normal Order Reduction
+            const leftRedex = redex(ast.func);
+            if (leftRedex) return leftRedex;
+            return redex(ast.arg);
+        }
+        return null; // Should not happen with valid AST
+    }
+    function reduce(node, t) {
+        try {
+            if (t === 'K') {
+                 // K x y -> x. node = ((K x) y). node.func = (K x). node.func.arg = x.
+                 if (!node?.func?.arg) throw new Error("Internal Error: Malformed K-redex structure during reduction.");
+                 return copy(node.func.arg);
+            }
+            // S x y z -> x z (y z). node = (((S x) y) z)
+            if (!node?.func?.func?.arg || !node?.func?.arg || !node?.arg) throw new Error("Internal Error: Malformed S-redex structure during reduction.");
+            const x = node.func.func.arg; // S x y z -> x
+            const y = node.func.arg;       // S x y z -> y
+            const z = node.arg;            // S x y z -> z
+            // Build x z (y z) = ( (x z) (y z) )
+            return { type: APPLICATION, func: { type: APPLICATION, func: copy(x), arg: copy(z) }, arg: { type: APPLICATION, func: copy(y), arg: copy(z) } };
+        } catch (e) {
+            console.error("Error during reduction:", e, "Node:", node, "Type:", t);
+            throw new Error(`Internal Evaluation Error: ${e.message}. Please check expression structure or report bug.`);
+        }
+    }
+
+    function replace(ast, info) {
+        const target = info.node;
+        let rep;
+        try {
+             rep = reduce(target, info.type);
+        } catch (e) {
+             // Propagate error from reduce
+             throw e;
+        }
+        const rec = n => {
+             // Use reference equality (===) for comparison
+             if (n === target) return rep;
+             if (n.type === APPLICATION) {
+                 // Important: MUST check if children are the target, otherwise we miss the replacement
+                 const newFunc = (n.func === target) ? rep : rec(n.func);
+                 const newArg = (n.arg === target) ? rep : rec(n.arg);
+                 // If children haven't changed, return original node to preserve structure/references
+                 if (newFunc === n.func && newArg === n.arg) {
+                     return n;
+                 }
+                 return { type: APPLICATION, func: newFunc, arg: newArg };
+             }
+             return n; // Base case: leaf nodes (COMBINATOR, VARIABLE)
+        };
+        return rec(ast);
+    }
+
+
+    /* ---------- Formatter ---------- */
+    function fmt(ast, rx = null) {
+        // Helper to format without highlights (used for identifying parts of redex)
+        const plain = (n, pApp) => {
+             if (!n) return '';
+             if (n.type === COMBINATOR || n.type === VARIABLE) return n.name;
+             // n is APPLICATION
+             const needsParen = n.arg?.type === APPLICATION; // Add parens if arg is an application (simplistic but common)
+             // Alternative: const needsParen = pApp; // Only add parens if we are the right-hand side arg
+             const l = plain(n.func, false); // Func is never parenthesized by outer application
+             const r = plain(n.arg, true);   // Arg might need parens if it's an application
+             return (needsParen ? '<span class="paren">(</span>' : '') + l + ' ' + r + (needsParen ? '<span class="paren">)</span>' : '');
+        };
+
+         // Main recursive formatting function with highlighting
+        const wrap = (n, pApp) => {
+            if (!n) return '';
+
+            // Check if current node 'n' is the root of the redex 'rx.node' using reference equality
+            if (rx && n === rx.node) {
+                if (rx.type === 'S') {
+                     // n = (((S x) y) z) - Ensure structure exists before accessing
+                     if (!n?.func?.func?.func || !n?.func?.func?.arg || !n?.func?.arg || !n?.arg) return plain(n, pApp); // Fallback if structure broken
+                     const s_node = n.func.func.func;
+                     const x_node = n.func.func.arg;
+                     const y_node = n.func.arg;
+                     const z_node = n.arg;
+                     return `<span class="highlight s-comb">${plain(s_node, false)}</span> <span class="highlight s-arg1">${plain(x_node, true)}</span> <span class="highlight s-arg2">${plain(y_node, true)}</span> <span class="highlight s-arg3">${plain(z_node, true)}</span>`;
+                }
+                 if (rx.type === 'K') {
+                     // n = ((K x) y) - Ensure structure exists
+                     if (!n?.func?.func || !n?.func?.arg || !n?.arg) return plain(n, pApp); // Fallback
+                     const k_node = n.func.func;
+                     const x_node = n.func.arg;
+                     const y_node = n.arg;
+                     return `<span class="highlight k-comb">${plain(k_node, false)}</span> <span class="highlight k-arg1">${plain(x_node, true)}</span> <span class="highlight k-arg2">${plain(y_node, true)}</span>`;
+                 }
+            }
+
+             // If not the redex root, format recursively
+            if (n.type === COMBINATOR || n.type === VARIABLE) return n.name;
+
+            // n is APPLICATION
+             const needsParen = n.arg?.type === APPLICATION; // Add parens if arg is an application
+             // Alternative: const needsParen = pApp;
+             const l = wrap(n.func, false); // Format func recursively
+             const r = wrap(n.arg, true);   // Format arg recursively
+
+            return (needsParen ? '<span class="paren">(</span>' : '') + l + ' ' + r + (needsParen ? '<span class="paren">)</span>' : '');
+        };
+        // Start formatting from the root, assuming it doesn't need outer parens initially (pApp=false)
+        return wrap(ast, false);
+    }
+
+
+    /* ---------- Tree drawing ---------- */
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const LV = 50, GAP = 15, PAD = 5, CHW = 8, TH = 16; // Layout constants
+    const colors = {
+        's-comb': '#b71c1c', 's-arg1': '#e53935', 's-arg2': '#ff7043', 's-arg3': '#ffe0b2',
+        'k-comb': '#0d47a1', 'k-arg1': '#1e88e5', 'k-arg2': '#90caf9'
+    };
+    const nodeWidth = n => (!n || n.type === COMBINATOR || n.type === VARIABLE) ? (n ? n.name.length * CHW + PAD * 2 : 0) : nodeWidth(n.func) + nodeWidth(n.arg) + GAP;
+
+    function drawTreeRecursive(node, group, cx, cy, highlightedAncestor, nodeToHighlightMap) {
+        const currentHighlight = nodeToHighlightMap.get(node) || highlightedAncestor;
+        const highlightClasses = currentHighlight ? [`${currentHighlight.type}-${currentHighlight.role}-node`, 'tree-highlight'] : [];
+
+        if (!node) { // Handle potential null nodes if structure is broken
+            console.warn("drawTreeRecursive called with null node");
+            return { x: cx, y: cy, minX: cx, maxX: cx, maxY: cy };
+        }
+
+        if (node.type === COMBINATOR || node.type === VARIABLE) {
+             const w = nodeWidth(node);
+             // Add background rectangle if highlighted
+             if (currentHighlight) {
+                 const rect = document.createElementNS(svgNS, 'rect');
+                 rect.setAttribute('x', cx - w / 2); rect.setAttribute('y', cy - TH / 2 - 2);
+                 rect.setAttribute('width', w); rect.setAttribute('height', TH + 4);
+                 rect.setAttribute('class', 'leaf-bg');
+                 rect.setAttribute('fill', colors[`${currentHighlight.type}-${currentHighlight.role}`]);
+                 group.appendChild(rect);
+             }
+             // Add text
+             const text = document.createElementNS(svgNS, 'text');
+             text.setAttribute('x', cx); text.setAttribute('y', cy + 4); // +4 for better vertical alignment
+             text.textContent = node.name;
+             text.classList.add('tree-leaf-text', ...highlightClasses);
+             group.appendChild(text);
+             return { x: cx, y: cy, minX: cx - w / 2, maxX: cx + w / 2, maxY: cy + TH / 2 };
+        }
+
+        // node is APPLICATION
+        const childY = cy + LV;
+        const funcWidth = nodeWidth(node.func);
+        const argWidth = nodeWidth(node.arg);
+        const totalChildWidth = funcWidth + GAP + argWidth;
+        const funcCX = cx - (totalChildWidth / 2) + (funcWidth / 2);
+        const argCX = cx + (totalChildWidth / 2) - (argWidth / 2);
+
+        // Draw children recursively
+        const leftBounds = drawTreeRecursive(node.func, group, funcCX, childY, currentHighlight, nodeToHighlightMap);
+        const rightBounds = drawTreeRecursive(node.arg, group, argCX, childY, currentHighlight, nodeToHighlightMap);
+
+        // Draw lines connecting to children (insert lines first so text is on top)
+        const mkLine = (x2, y2) => {
+             const line = document.createElementNS(svgNS, 'line');
+             line.setAttribute('x1', cx); line.setAttribute('y1', cy);
+             line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+             line.classList.add('tree-link', ...highlightClasses);
+             group.insertBefore(line, group.firstChild); // Insert line at the beginning (drawn first)
+        };
+        // Only draw line if child exists and has valid coordinates
+        if (leftBounds && isFinite(leftBounds.x) && isFinite(leftBounds.y)) mkLine(leftBounds.x, leftBounds.y);
+        if (rightBounds && isFinite(rightBounds.x) && isFinite(rightBounds.y)) mkLine(rightBounds.x, rightBounds.y);
+
+        return {
+             x: cx, y: cy,
+             minX: Math.min(leftBounds?.minX ?? cx, rightBounds?.minX ?? cx),
+             maxX: Math.max(leftBounds?.maxX ?? cx, rightBounds?.maxX ?? cx),
+             maxY: Math.max(leftBounds?.maxY ?? cy, rightBounds?.maxY ?? cy)
+        };
+    }
+
+    function showTrees() {
+        // Clear previous SVG content except defs
+        svgContainer.innerHTML = '<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#007bff"/></marker></defs>';
+
+        if (!evaluationAstHistory || evaluationAstHistory.length === 0) {
+             svgContainer.setAttribute('width', 100);
+             svgContainer.setAttribute('height', 50);
+             svgContainer.style.height = '50px';
+             const text = document.createElementNS(svgNS, 'text');
+             text.setAttribute('x', 10); text.setAttribute('y', 25);
+             text.textContent = "No evaluation steps to visualize.";
+             svgContainer.appendChild(text);
+            return;
+        }
+
+
+        const layouts = [];
+        const treePaddingY = 30;
+        const treeSpacingY = 120;
+        let overallMinX = Infinity, overallMaxX = -Infinity;
+
+        evaluationAstHistory.forEach(ast => {
+            const group = document.createElementNS(svgNS, 'g');
+            svgContainer.appendChild(group);
+            const rx = redex(ast); // Find the redex for this step's AST
+            const nodeToHighlightMap = new Map();
+
+             // If a redex exists, map its components to their highlight roles
+            if (rx) {
+                const node = rx.node; // The application node that is the root of the redex
+                 // Ensure the redex structure is valid before trying to map highlights
+                if (node) {
+                    const type = rx.type.toLowerCase();
+                    if (type === 's' && node.func?.func?.func && node.func?.func?.arg && node.func?.arg && node.arg) {
+                        nodeToHighlightMap.set(node.func.func.func, { type: 's', role: 'comb' }); // S
+                        nodeToHighlightMap.set(node.func.func.arg, { type: 's', role: 'arg1' }); // x
+                        nodeToHighlightMap.set(node.func.arg, { type: 's', role: 'arg2' });       // y
+                        nodeToHighlightMap.set(node.arg, { type: 's', role: 'arg3' });         // z
+                    } else if (type === 'k' && node.func?.func && node.func?.arg && node.arg) {
+                        nodeToHighlightMap.set(node.func.func, { type: 'k', role: 'comb' }); // K
+                        nodeToHighlightMap.set(node.func.arg, { type: 'k', role: 'arg1' });  // x
+                        nodeToHighlightMap.set(node.arg, { type: 'k', role: 'arg2' });    // y
+                    }
+                }
+            }
+
+             // Draw the tree for the current AST
+             const currentTreeWidth = nodeWidth(ast);
+             const bounds = drawTreeRecursive(ast, group, currentTreeWidth / 2, 0, null, nodeToHighlightMap); // Start drawing at y=0
+             layouts.push({ group: group, bounds: bounds });
+              if (isFinite(bounds.minX)) overallMinX = Math.min(overallMinX, bounds.minX);
+             if (isFinite(bounds.maxX)) overallMaxX = Math.max(overallMaxX, bounds.maxX);
+        });
+
+         // Position trees vertically and horizontally center them
+         const contentWidth = Math.max(overallMaxX - overallMinX, 400); // Ensure min width
+         let currentY = 0;
+         let prevTreeBottom = 0;
+         let prevTreeCenterX = 0;
+
+         layouts.forEach((layout, i) => {
+             const treeWidth = layout.bounds.maxX - layout.bounds.minX;
+             // Calculate translation to center the tree horizontally and position it vertically
+             const translateX = (contentWidth / 2) - (layout.bounds.minX + treeWidth / 2);
+             const translateY = currentY + treePaddingY; // Add padding above the tree
+             layout.group.setAttribute('transform', `translate(${translateX}, ${translateY})`);
+
+             // Draw arrow from previous tree to this one
+             if (i > 0 && isFinite(prevTreeCenterX) && isFinite(prevTreeBottom) && isFinite(layout.bounds.x) && isFinite(translateY)) {
+                 const arrow = document.createElementNS(svgNS, 'line');
+                 arrow.setAttribute('x1', prevTreeCenterX); // Start from center of previous tree bottom
+                 arrow.setAttribute('y1', prevTreeBottom + 20); // Start below previous tree
+                 arrow.setAttribute('x2', translateX + layout.bounds.x); // End at center of current tree top
+                 arrow.setAttribute('y2', translateY - 20); // End above current tree
+                 arrow.classList.add('step-arrow');
+                 svgContainer.appendChild(arrow); // Append arrow after group transforms are set
+             }
+
+             // Update positions for the next iteration if bounds are valid
+             if (isFinite(layout.bounds.x) && isFinite(layout.bounds.maxY)) {
+                 prevTreeCenterX = translateX + layout.bounds.x; // Center X of the current tree
+                 prevTreeBottom = translateY + layout.bounds.maxY; // Bottom Y of the current tree
+                 currentY = prevTreeBottom + (i < layouts.length - 1 ? treeSpacingY : 0); // Add spacing for next tree
+             } else {
+                 // If bounds invalid, try to estimate next position to avoid overlapping
+                 currentY += LV * 3 + treeSpacingY; // Default spacing guess
+                 prevTreeCenterX = contentWidth / 2; // Reset center guess
+             }
+         });
+
+         // Set final SVG dimensions
+         const totalHeight = currentY + treePaddingY; // Add padding at the bottom
+         svgContainer.setAttribute('width', contentWidth + 40); // Add padding to width
+         svgContainer.setAttribute('height', totalHeight);
+         // Update style height for container if needed (especially for scaling)
+         svgContainer.style.height = totalHeight + 'px';
+
+         applyZoom(); // Apply current zoom level
+    }
+
+
+    /* ---------- Zoom helpers ---------- */
+    function applyZoom() { svgContainer.style.transform = `scale(${zoom})`; }
+    function zoomBy(delta) { zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom + delta)); applyZoom(); }
+
+    /* ---------- Layout Toggle ---------- */
+    function toggleLayout() {
+        document.body.classList.toggle('top-bottom-layout');
+        if (document.body.classList.contains('top-bottom-layout')) {
+            layoutToggleButton.textContent = 'View: Top/Bottom';
+            layoutToggleButton.title = 'Switch to Side-by-Side Layout';
+        } else {
+            layoutToggleButton.textContent = 'View: Side-by-Side';
+            layoutToggleButton.title = 'Switch to Top/Bottom Layout';
+        }
+        // Re-apply zoom in case layout change affects SVG container size/positioning
+        applyZoom();
+    }
+
+    /* ---------- Evaluation driver ---------- */
+    function evaluateExpression() {
+        const expr = expressionInput.value.trim();
+        outputElement.innerHTML = ''; // Clear previous output
+        evaluationAstHistory = []; // Clear history
+
+        // Clear tree visualization immediately
+        svgContainer.innerHTML = '<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#007bff"/></marker></defs>';
+        svgContainer.setAttribute('width', 100); svgContainer.setAttribute('height', 50); svgContainer.style.height = '50px';
+
+        if (!expr) {
+             outputElement.innerHTML = "Enter an expression to evaluate.";
+             // Clear tree view as well when input is empty
+             showTrees(); // This will show the "No steps" message
+            return;
+        }
+
+
+        let ast;
+        try {
+            ast = parseTokens(tokenize(expr));
+        } catch (e) {
+            // Display parsing errors clearly in the output area
+            outputElement.innerHTML = `<span class="error">Error parsing expression:\n${e.message}</span>`;
+             showTrees(); // Clear tree view or show "No steps" on parse error
+            showTab('steps'); // Ensure steps tab is visible to show the error
+            return; // Stop evaluation if parsing failed
+        }
+
+        const outputSteps = [];
+        let currentAst = ast; // Use a separate variable for the evolving AST
+        let stepCount = 0;
+        let errorOccurred = false;
+
+
+        try {
+            for (stepCount = 0; stepCount < MAX_STEPS; stepCount++) {
+                evaluationAstHistory.push(copy(currentAst)); // Store a copy of the AST *before* potential reduction
+                const redexInfo = redex(currentAst); // Find the next redex
+
+                // Format the current AST state, highlighting the redex if found
+                outputSteps.push(fmt(currentAst, redexInfo));
+
+                if (!redexInfo) {
+                    outputSteps.push(`<span class="status">(Normal form reached in ${stepCount} steps)</span>`);
+                    break; // Stop evaluation
+                }
+
+                // Perform the reduction
+                currentAst = replace(currentAst, redexInfo);
+
+                if (stepCount === MAX_STEPS - 1) {
+                     // Loop is about to end due to MAX_STEPS. Add the final AST state reached *after* the last reduction.
+                     evaluationAstHistory.push(copy(currentAst));
+                     outputSteps.push(fmt(currentAst, null)); // Show last state without highlight
+                     outputSteps.push(`<span class="status">(Evaluation stopped after ${MAX_STEPS} steps)</span>`);
+                }
+            }
+             // This handles the case where loop finished due to `break` (normal form)
+             // or finished because stepCount hit MAX_STEPS (limit message already added)
+
+
+        } catch (evalError) {
+            console.error("Evaluation Error:", evalError);
+            // Add the states evaluated so far
+            outputElement.innerHTML = outputSteps.join('\n\n');
+            // Append a clear error message for evaluation issues
+            outputElement.innerHTML += `\n\n<span class="error">Runtime Evaluation Error:\n${evalError.message}\n(Occurred around step ${stepCount + 1})</span>`;
+            errorOccurred = true;
+             showTab('steps'); // Ensure steps tab is visible to show the error
+        }
+
+
+        if (!errorOccurred) {
+            outputElement.innerHTML = outputSteps.join('\n\n'); // Display steps
+        }
+
+        // Generate and display tree visualization regardless of evaluation outcome (shows steps up to error/limit)
+        showTrees();
+
+        // Ensure the correct tab is visible after evaluation (usually Steps, especially if error occurred)
+        if(!errorOccurred) {
+             const activeTab = document.querySelector('.tab-button.active')?.dataset?.tab || 'steps';
+             showTab(activeTab);
+        } else {
+             showTab('steps');
+        }
+
+    }
+
+    // Create a debounced version for automatic evaluation
+    const debouncedEvaluate = debounce(evaluateExpression, EVALUATION_DELAY_MS);
+
+    /* ---------- Event Listeners ---------- */
+    function showTab(tabName) {
+        // Deactivate all tabs and content
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+
+        // Activate the selected tab and content
+        const contentToShow = document.getElementById(tabName + '-tab');
+        const buttonToActivate = document.querySelector(`.tab-button[data-tab="${tabName}"]`);
+
+        if (contentToShow) contentToShow.classList.add('active');
+        if (buttonToActivate) buttonToActivate.classList.add('active');
+    }
+
+    // Tab switching, Zoom buttons
+    document.addEventListener('click', e => {
+        if (e.target.matches('.tab-button')) {
+            showTab(e.target.dataset.tab);
+        }
+        if (e.target.id === 'zoom-in') zoomBy(ZOOM_STEP);
+        if (e.target.id === 'zoom-out') zoomBy(-ZOOM_STEP);
+        // Manual evaluate button click (though it's hidden)
+        if (e.target.id === 'evaluate-btn') evaluateExpression();
+    });
+
+    // Automatic evaluation on input change (debounced)
+    expressionInput.addEventListener('input', debouncedEvaluate);
+
+     // Layout toggle button
+     layoutToggleButton.addEventListener('click', toggleLayout);
+
+    // Keyboard zoom controls (Ctrl +/-, Ctrl + =)
+    document.addEventListener('keydown', e => {
+        // Ensure focus isn't on input elements where Ctrl+/- might be used for text size
+        if (document.activeElement !== expressionInput) {
+            if (e.ctrlKey && (e.key === '+' || e.key === '=')) {
+                 e.preventDefault();
+                 zoomBy(ZOOM_STEP);
+            } else if (e.ctrlKey && e.key === '-') {
+                 e.preventDefault();
+                 zoomBy(-ZOOM_STEP);
+            }
+        }
+    });
+
+    // Wheel zoom control (Ctrl + Wheel in Tree area)
+    treeVisualizationContent.addEventListener('wheel', e => {
+        if (e.ctrlKey) {
+            e.preventDefault();
+            zoomBy(e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
+        }
+    }, { passive: false }); // Need passive:false to prevent default scroll zoom
+
+    // Initial setup on page load
+    document.addEventListener('DOMContentLoaded', () => {
+         showTab('steps'); // Show 'steps' tab initially
+         // Set initial layout button text based on default CSS (side-by-side)
+         layoutToggleButton.textContent = 'View: Side-by-Side';
+         layoutToggleButton.title = 'Switch to Top/Bottom Layout';
+
+         // Trigger initial evaluation for the default expression in the textarea
+         evaluateExpression();
+    });
+
+})();
+</script>
+</body>
+</html>
